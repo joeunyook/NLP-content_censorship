@@ -1,3 +1,13 @@
+# Customized
+data/*
+shap_data/*
+log/*
+models/*
+output/*
+*.pkl
+*.sav
+*.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
