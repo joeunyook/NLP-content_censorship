@@ -1,4 +1,7 @@
 # TLDR
+
+https://drive.google.com/drive/folders/1O-whG68wP_PJxDEEMKI7LxaYlEtcwSfB?usp=drive_link contains some data directories that are too large to push to the GitHub.
+
 `data/dataset_train.csv`, `data/dataset_val.csv`, and `data/dataset_test.csv` are the most updated, original, and comprehensive data. These are used for model prediction.
 
 Then I did a lot of messy preprocesses to generate `shap_data/beeswarm/dataset_test_uniq_en_processed.csv` from `data/dataset_test.csv`, and I used `shap_data/beeswarm/dataset_test_uniq_en_processed.csv` to generate shapley values and spreadsheets.
@@ -109,3 +112,9 @@ From `shap_data/spreadsheet/union_features_with_ranks.csv` to `shap_data/spreads
 from shapley_value import build_spreadsheet
 spread_df = build_spreadsheet(['None', "TR", 'DE', 'FR', "RU", 'IN'], top=500)
 ```
+
+# Model training: 
+
+- `log/` contains my previous training logs.
+- `models/` stores those model checkpoints.
+- `output/` contains model prediction outputs.
