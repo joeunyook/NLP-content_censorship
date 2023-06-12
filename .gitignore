@@ -1,9 +1,9 @@
 # Customized
-data/*
-shap_data/*
-log/*
+# data/*
+# shap_data/*
+# log/*
 models/*
-output/*
+# output/*
 *.pkl
 *.sav
 *.csv
