@@ -1,0 +1,62 @@
+Country-wise F1 Score Report (Only DE, TR, IN, RU, FR)
+========================================
+
+ Country: DE (n=2650)
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000         0
+           1     1.0000    0.9189    0.9577      2650
+
+    accuracy                         0.9189      2650
+   macro avg     0.5000    0.4594    0.4789      2650
+weighted avg     1.0000    0.9189    0.9577      2650
+
+========================================
+
+ Country: IN (n=352)
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000         0
+           1     1.0000    0.7983    0.8878       352
+
+    accuracy                         0.7983       352
+   macro avg     0.5000    0.3991    0.4439       352
+weighted avg     1.0000    0.7983    0.8878       352
+
+========================================
+
+ Country: TR (n=2568)
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000         0
+           1     1.0000    0.9054    0.9503      2568
+
+    accuracy                         0.9054      2568
+   macro avg     0.5000    0.4527    0.4752      2568
+weighted avg     1.0000    0.9054    0.9503      2568
+
+========================================
+
+ Country: RU (n=293)
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000         0
+           1     1.0000    0.8055    0.8922       293
+
+    accuracy                         0.8055       293
+   macro avg     0.5000    0.4027    0.4461       293
+weighted avg     1.0000    0.8055    0.8922       293
+
+========================================
+
+ Country: FR (n=116)
+              precision    recall  f1-score   support
+
+           0     0.0000    0.0000    0.0000         0
+           1     1.0000    0.5172    0.6818       116
+
+    accuracy                         0.5172       116
+   macro avg     0.5000    0.2586    0.3409       116
+weighted avg     1.0000    0.5172    0.6818       116
+
+========================================

@@ -1,4 +1,6 @@
 import sys
+import torch
+import torch.nn.functional as F
 
 
 def plot_heatmap(df, vmin=None, vmax=None, filepath='../heatmap.pdf'):
@@ -66,3 +68,35 @@ def modify_dict_from_dataparallel(state_dict, args):
         return new_state_dict
     else:
         return state_dict
+
+    
+    
+
+
+#FROM HERE, Evidential deep learning
+
+# --------- EDL LOSS FUNCTION ---------
+def edl_mse_loss(pred_alpha, target, epoch=1, num_classes=2, coeff=1.0):
+    S = torch.sum(pred_alpha, dim=1, keepdim=True)
+    one_hot = F.one_hot(target, num_classes).float()
+    loss = torch.sum((one_hot - pred_alpha / S) ** 2, dim=1, keepdim=True)
+    reg = coeff * torch.sum((pred_alpha - 1) ** 2, dim=1, keepdim=True)
+    return torch.mean(loss + reg)
+
+
+# --------- CALIBRATION METRIC ---------
+def compute_ece(probabilities, labels, n_bins=10):
+    confidences, predictions = probabilities.max(1)
+    accuracies = predictions.eq(labels)
+
+    bin_boundaries = torch.linspace(0, 1, n_bins + 1)
+    ece = torch.zeros(1, device=probabilities.device)
+
+    for i in range(n_bins):
+        mask = (confidences > bin_boundaries[i]) & (confidences <= bin_boundaries[i + 1])
+        if mask.sum() > 0:
+            accuracy = accuracies[mask].float().mean()
+            confidence = confidences[mask].mean()
+            ece += (confidence - accuracy).abs() * mask.float().mean()
+
+    return ece.item()

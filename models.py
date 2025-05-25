@@ -16,7 +16,51 @@ log = logging.getLogger('bert_tune')
 
 # common functions for train.py and eval.py
 
+#For evidential deep learning
+class EDLHead(torch.nn.Module):
+    def __init__(self, in_features, num_classes):
+        super().__init__()
+        self.linear = torch.nn.Linear(in_features, num_classes)
 
+    def forward(self, x):
+        raw = self.linear(x)
+        alpha = F.softplus(raw) + 1  # ensure Dirichlet parameter α > 1
+        return alpha
+###
+
+
+
+
+class Model(torch.nn.Module):
+    def __init__(self, args):
+        super(Model, self).__init__()
+        self.args = args
+        self.bert_model = get_model(args.pretrained_model, args.output_type, args.num_classes)
+        self.drop = torch.nn.Dropout(p=args.dropout_rate_curr)
+        
+        self.hidden_size = 768  # You may want to infer this dynamically
+        input_dim = self.hidden_size + args.num_numeric_features
+        
+        if self.args.use_edl:
+            self.classifier = EDLHead(input_dim, args.num_classes or 2)
+        else:
+            self.classifier = torch.nn.Linear(input_dim, args.num_classes or 2)
+
+    def forward(self, tokenized_text, numeric_features=None):
+        outputs = self.bert_model(tokenized_text)
+        cls_embedding = self.drop(outputs.last_hidden_state[:, 0, :])  # [CLS] token
+        
+        if numeric_features is not None:
+            cls_embedding = torch.cat((cls_embedding, numeric_features), dim=1)
+
+        out = self.classifier(cls_embedding)
+        return out
+
+    
+    
+    
+    
+    
 def data_preparation(args, log, mode):
     log.info('Initialize DfModel class and get dataset:')
     if mode == 'train':
@@ -44,14 +88,20 @@ def data_preparation(args, log, mode):
 def get_tokenizer(pretrained_model):
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+    
+    # If tokenizer lacks pad_token, assign eos_token as pad_token
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        # or tokenizer.add_special_tokens({'pad_token': '[PAD]'}) if you prefer
+    
     return tokenizer
-
 
 def get_model(pretrained_model, clf, num_labels=None):
     if clf in ['binary', 'categorical']:
-        from transformers import AutoModelForSequenceClassification
-        model = AutoModelForSequenceClassification.from_pretrained(
-            pretrained_model)
+        #from transformers import AutoModelForSequenceClassification
+        from transformers import AutoModel
+        #model = AutoModelForSequenceClassification.from_pretrained(pretrained_model)
+        model = AutoModel.from_pretrained(pretrained_model)
     else:
         if num_labels is None:
             num_labels = 2
@@ -183,7 +233,7 @@ class Dataset(torch.utils.data.Dataset):
 
         return text, y, index
 
-
+'''
 class Model(torch.nn.Module):
     def __init__(self, args):
         super(Model, self).__init__()
@@ -205,24 +255,51 @@ class Model(torch.nn.Module):
         else:
             self.l1 = _get_module_list(args, output_dim=1)
             # self.l1 = _get_module_list(args, output_dim=args.num_classes)
+            
+     
+    def forward(self, tokenized_text, numeric_features=None):
+    # Use AutoModel — not AutoModelForSequenceClassification
+        outputs = self.bert_model(tokenized_text)
+        cls_embedding = self.drop(outputs.last_hidden_state[:, 0, :])  # [CLS] token
 
+        if numeric_features is not None:
+            cls_embedding = torch.cat((cls_embedding, numeric_features), dim=1)
+
+        if self.args.use_edl:
+            self.classifier = EDLHead(hidden_size + args.num_numeric_features, args.num_classes or 2)  # EDLHead returns alpha
+        else:
+            out = self.l1(cls_embedding)  # regular head for logits
+            self.classifier = torch.nn.Linear(hidden_size + args.num_numeric_features, args.num_classes or 2)
+        return out
+
+            
+         
+# !!!! this forward method is designed for AutoModelForSequenceClassification, which is     #not compatible with your Evidential Deep Learning (EDL) setup"
+            
+            
     def forward(self, tokenized_text, numeric_features=None):
         if self.args.pretrained_model != 'microsoft/deberta-v3-large':
+            bert_output = self.bert_model(tokenized_text)
+            print("Shape of bert_output:", bert_output.pooler_output.shape) #############
             text_rep = self.drop(self.bert_model(tokenized_text).pooler_output)
         else:
+            bert_output = self.bert_model(tokenized_text)
+            print("Shape of bert_output:", bert_output[-1].shape) # ADD THIS LINE
             text_rep = self.drop(self.bert_model(
                 tokenized_text)[-1])
         # log.info(text_rep.shape)
         if numeric_features is not None:
             text_rep = torch.cat((text_rep, numeric_features), dim=1)
-
-        # out = F.relu(self.l1(text_rep))
+        print(f"Shape of text_rep: {text_rep.shape}") 
+        out = F.relu(self.l1(text_rep))
         out = self.l1(text_rep)
-        # log.info(out.shape)
-        # out = self.l2(out)
+        log.info(out.shape)
+        out = self.l2(out)
+        print(f"Shape of out: {out.shape}")
 
         return out
-
+'''
+            
 
 class DfModel():
     def __init__(self, args, get_df=True):
@@ -271,6 +348,8 @@ class DfModel():
             # only cpu
             use_cuda = False
             self.device = torch.device('cpu')
+        log.info(f" Using device: {self.device}")
+
 
     def get_dataloader(self, mode='train'):
         log.info('DfModel get_dataloader..')
@@ -309,13 +388,16 @@ class DfModel():
                 self.val_data, **dataloader_params)
             self.test_loader = torch.utils.data.DataLoader(
                 self.test_data, **dataloader_params)
-
+            
+            
     def get_model(self):
         log.info('DfModel get_model..')
+
+    # If using EDL or classification, use your custom Model wrapper
         if self.args.output_type in ['binary', 'categorical']:
-            self.model = get_model(
-                self.args.pretrained_model, self.args.output_type, self.args.num_classes)
+            self.model = Model(self.args)
         else:
+        # For regression tasks
             self.model = Model(self.args)
 
     def get_tokenizer(self):
@@ -354,16 +436,55 @@ class DfModel():
                 if numeric is not None:
                     numeric = torch.stack(numeric).permute(
                         1, 0).float().to(self.device)
+                    
+                    
+                    
+                '''    
                 model_output = self.model(
                     self.tokenizer(texts, padding=True, return_tensors='pt', truncation=True, max_length=self.args.max_length).input_ids.to(self.device), numeric)
 
                 if self.args.output_type in ['binary', 'categorical']:
                     model_output = model_output.logits
+                '''   
+                    
+                    
+                input_ids = self.tokenizer(texts, padding=True, return_tensors='pt', truncation=True, max_length=self.args.max_length).input_ids.to(self.device)
+                model_output = self.model(input_ids, numeric)
+
+                if self.args.use_edl:
+                    alpha = model_output
+                    S = alpha.sum(dim=1, keepdim=True)
+                    belief = alpha / S
+                    uncertainty = self.args.num_classes / S
+                    evidence = S - self.args.num_classes
+                    preds = torch.argmax(belief, dim=1)
+                else:
+                    model_output = model_output.logits
+                    preds = torch.argmax(model_output, dim=1)   
+                    
+                    
+                    
+                    
+                    
 
                 if self.args.output_type == 'binary' or self.args.output_type == 'categorical':
                     label = label.long()
                     loss = self.loss_f(model_output.cpu(), label)
-                    loss_list.append(loss.item())
+                    
+                    if self.args.use_edl:
+                        alpha = model_output  # no .logits!
+                        ##
+                        print(f"--- EVAL ({split.upper()}) BATCH ---")
+                        print("Shape of alpha:", alpha.shape)
+                        print("Shape of label:", label.shape)
+                        print("Unique values in label:", torch.unique(label))
+                        
+                        ##
+                        loss = self.loss_f(alpha.cpu(), label)
+                    else:
+                        model_output = model_output.logits
+                        loss = self.loss_f(model_output.cpu(), label)
+
                     preds = torch.argmax(model_output, dim=1)
                     correct_predictions += torch.sum(preds.cpu() == label)
                     predictions.extend(preds.tolist())
@@ -390,12 +511,25 @@ class DfModel():
                             output_dict['y_truth'] = label[idx, 0].item()
                             output_dict['y_pred'] = preds[idx, 0].item()
                         output_dict[self.args.text_col] = texts[idx]
-                        if self.args.numeric_features_col is not None and len(self.args.numeric_features_col) != 0:
+                        
+                        withheld_val = self.df_test.iloc[index[idx].item()].get("withheld", None)
+                        output_dict["withheld"] = withheld_val
+               
+                                
+                                
+                                
+                                
+                        if numeric is not None and self.args.numeric_features_col is not None and len(self.args.numeric_features_col) != 0:
                             for feature_idx, feature in enumerate(self.args.numeric_features_col):
-                                output_dict[feature] = numeric[idx,
-                                                               feature_idx].item()
-                        output_df = output_df.append(
-                            output_dict, ignore_index=True)
+                                output_dict[feature] = numeric[idx, feature_idx].item()
+
+                        if self.args.use_edl:
+                            output_dict['belief_0'] = belief[idx][0].item()
+                            output_dict['belief_1'] = belief[idx][1].item()
+                            output_dict['uncertainty'] = uncertainty[idx][0].item()
+                            output_dict['evidence'] = evidence[idx][0].item()
+
+                        output_df = pd.concat([output_df, pd.DataFrame([output_dict])], ignore_index=True)
 
                     if cnt_batch % 1000 == 0:
                         output_df.to_csv(
@@ -470,14 +604,29 @@ class DfModel():
                         texts, padding=True, return_tensors='pt', truncation=True, max_length=self.args.max_length).input_ids.to(self.device)
 
                     if self.args.output_type in ['binary', 'categorical']:
-                        model_output = self.model(
-                            input_tokens, numeric).logits
-                        # print(model_output)
-                    else:
-                        model_output = self.model(input_tokens, numeric)
+                        if self.args.use_edl:
+                            model_output = self.model(input_tokens, numeric)
+                        else:
+                            model_output = self.model(input_tokens, numeric).logits
+                        print(model_output)
+                  
 
                     if self.args.output_type == 'binary' or self.args.output_type == 'categorical':
                         label = label.long()
+                             
+                        #
+                        print("--- TRAIN BATCH ---")
+                        if self.args.use_edl:
+                            print("Shape of model_output (alpha):", model_output.shape)
+                        else:
+                            print("Shape of model_output (logits):", model_output.logits.shape)
+
+                        print("Shape of label:", label.shape)
+                        print("Unique values in label:", torch.unique(label))
+                            
+                            
+                            
+                            
                         loss = self.loss_f(model_output.cpu(), label)
                         train_loss_list.append(loss.item())
                         preds = torch.argmax(model_output, dim=1)
@@ -561,7 +710,8 @@ class DfModel():
     def grid_search(self):
         log.info('DfModel grid_search..')
         import torch.optim as optim
-        from pytorch_transformers import WarmupLinearSchedule
+        from transformers import get_linear_schedule_with_warmup
+
         param_dict = {
             'batch_size': [int(item) for item in self.args.batch_size],
             'lr': [float(item) for item in self.args.lr],
@@ -581,15 +731,16 @@ class DfModel():
             class_dict = sorted(class_count.items(), key=lambda item: item[0])
             log.info('Class labels distribution:')
             log.info(class_dict)
-            if self.args.class_weight is not None:
-                self.loss_f = torch.nn.CrossEntropyLoss(
-                    weight=get_class_weight(
-                        self.args.class_weight,
-                        class_dict
-                    )
-                )
+            if self.args.use_edl:
+                self.args.num_classes = 2
+                from utils import edl_mse_loss
+                self.loss_f = lambda output, target: edl_mse_loss(output, target, epoch=1, num_classes=self.args.num_classes)
             else:
-                self.loss_f = torch.nn.CrossEntropyLoss()
+                if self.args.class_weight is not None:
+                    self.loss_f = torch.nn.CrossEntropyLoss(
+                        weight=get_class_weight(self.args.class_weight, class_dict))
+                else:
+                    self.loss_f = torch.nn.CrossEntropyLoss()
         elif self.args.output_type == 'real':
             self.loss_f = torch.nn.MSELoss()
 

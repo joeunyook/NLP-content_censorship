@@ -11,6 +11,7 @@ from models import data_preparation
 from utils import log_args, add_args, LoggerWritter, modify_dict_from_dataparallel
 # from analysis import ErrorAnalysis as ALS
 from available_models import all_models
+from sklearn import metrics
 
 
 def eval(args):
@@ -41,6 +42,11 @@ def eval(args):
 
         log.info('Get model..')
         dm.get_model()
+        
+        if args.use_edl:
+            from utils import compute_ece
+            from torch.nn import functional as F
+        
 
         log.info('Get model checkpoint..')
         # if loading a state_dict saved without removing extra keys in the dict,
@@ -50,7 +56,30 @@ def eval(args):
         dm.model.eval()
 
         log.info('Begin evaluation:')
-        dm.eval(split='test', store_csv=True, report_analysis=True)
+        
+        
+        #evidential deep learning
+        report, _, _ = dm.eval(split='test', store_csv=True, report_analysis=True)
+
+        if args.use_edl:
+            
+            df = pd.read_csv(args.csv_output_path)
+            belief = df[[col for col in df.columns if col.startswith("belief_")]].values
+            labels = df["y_truth"].values
+            preds = df["y_pred"].values
+            uncertainty = df["uncertainty"].values
+
+            ece = compute_ece(torch.tensor(belief), torch.tensor(labels))
+            f1 = metrics.f1_score(labels, preds)
+            mean_uncertainty = uncertainty.mean()
+
+            print("\n EDL Metrics:")
+            print(f"F1 Score: {f1:.4f}")
+            print(f"ECE: {ece:.4f}")
+            print(f"Mean Uncertainty: {mean_uncertainty:.4f}")
+    #!!!
+
+
 
         log.info(f'End evaluation on file: {filename}\n')
 
@@ -113,7 +142,14 @@ if __name__ == '__main__':
     # regression
     # parser.add_argument('--')
 
+  
+    
+    
+    #for evidential deep learning
+    parser.add_argument('--use_edl', action='store_true', help='Use Evidential Deep Learning inference')
+    #!
     args = parser.parse_args()
+    
     args.dataset_class_dir = None
 
     # logging

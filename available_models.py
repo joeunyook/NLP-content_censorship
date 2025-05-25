@@ -62,6 +62,11 @@ all_models = {
 
     'xlm-roberta-base': {
         'feature_size': 768,
+    },
+    
+    'EleutherAI/pythia-1b-deduped': {
+        'feature_size': 2048 # for Pythia 1B
     }
+
 
 }
