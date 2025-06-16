@@ -17,7 +17,7 @@ This version of the repo extends the original work by:
 
 These experiments were conducted as part of my research and are summarized in the paper:
 
-📄 **[Towards Trustworthy Censorship Detection: Evidential Deep Learning and LLM Context in High-Uncertainty NLP Decisions (PDF)](https://github.com/joeunyook/NLP-content_censorship/blob/main/NLP_paper_final.pdf)**  
+📄 **[Towards Trustworthy Censorship Detection: Evidential Deep Learning and LLM Context in High-Uncertainty NLP Decisions (PDF)](https://github.com/joeunyook/NLP-content_censorship/blob/main/final_paper.pdf)**  
 ✍ *Joeun Yook, University of Toronto*
 
 ---
